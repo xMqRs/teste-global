@@ -84,7 +84,7 @@ async function executarWebhook(destino, payload) {
 function conteudoWebhookDoDestino(base, mencao, alvoReply, destino, previa) {
   const texto = (previa || 'mensagem').replace(/[\[\]]/g, '');
   const prefixoReply = alvoReply
-    ? `-# Respondendo a: [${texto}](${linkDaMensagem(destino.guildId, alvoReply.canalId, alvoReply.msgId)})\n`
+    ? `-# Respondendo a: [${texto}](<${linkDaMensagem(destino.guildId, alvoReply.canalId, alvoReply.msgId)}>)\n`
     : '';
   const prefixoMencao = mencao ? `${mencao}\n` : '';
   return limitar(`${prefixoReply}${prefixoMencao}${base.content}`, LIMITE_CONTEUDO);

@@ -134,7 +134,7 @@ function montarConteudoWebhook(message, info, links = [], opcoes = {}) {
   const conteudo = opcoes.conteudo === undefined ? message.content : opcoes.conteudo;
   const partes = [];
   if (!info.ocultarServidor) partes.push(escaparMarkdown(info.nomeServidor));
-  if (!info.ocultarPerfil) partes.push(`[Ver perfil](${info.perfilUrl})`);
+  if (!info.ocultarPerfil) partes.push(`[Ver perfil](<${info.perfilUrl}>)`);
   const rodape = partes.length ? `-# ${partes.join(' — ')}` : '';
   const texto = [conteudo || '', ...links].filter(Boolean).join('\n');
   const limite = CONTEUDO_MAX - rodape.length - RESERVA_MENCAO;

@@ -48,7 +48,7 @@ test('envia pelo webhook com nome, rodapé e uma cópia por servidor', async () 
   assert.equal(api.webhooksCriados, 4);
   for (const c of copias) {
     assert.match(c.opcoes.username, /^User \d+ \(@user\d+#0001\)$/);
-    assert.match(c.opcoes.content, /^olá pessoal\n-# Servidor g1 — \[Ver perfil\]\(https:\/\/web\.fluxer\.app\/users\/u\d+\)$/);
+    assert.match(c.opcoes.content, /^olá pessoal\n-# Servidor g1 — \[Ver perfil\]\(<https:\/\/web\.fluxer\.app\/users\/u\d+>\)$/);
     assert.deepEqual(c.opcoes.allowedMentions, { parse: [] });
   }
   const vinculos = H.dados.get('MensagemGlobal').filter((l) => l.msgId !== msg.id);

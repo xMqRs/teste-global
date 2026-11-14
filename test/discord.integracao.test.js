@@ -93,7 +93,7 @@ test('Discord usa webhook com nome seguro, reaproveita o webhook e prefixa reply
   const respostas = discord.copiasVivas().filter((m) => m.opcoes && m.opcoes.content.includes('resposta\n'));
   assert.equal(respostas.length, 2);
   for (const r of respostas) {
-    assert.match(r.opcoes.content, /^-# Respondendo a: \[[^\]]+\]\(https:\/\/discord\.com\/channels\/g[34]\/c[34]\/dw\d+\)\nresposta/);
+    assert.match(r.opcoes.content, /^-# Respondendo a: \[[^\]]+\]\(<https:\/\/discord\.com\/channels\/g[34]\/c[34]\/dw\d+>\)\nresposta/);
   }
   const vinculos = H.dados.get('MensagemGlobal').filter((l) => l.msgId.startsWith('dw') && l.grupoId === resposta.id);
   assert.equal(vinculos.length, 2);
