@@ -29,6 +29,9 @@ function montarStatus(config) {
     config.canalId ? '' : null,
     `${config.filtrarPalavroes !== false ? LIGADO : DESLIGADO} **Filtro de palavrões**`,
     `${config.filtrarLinks ? LIGADO : DESLIGADO} **Filtro de links**`,
+    `${config.ocultarServidor ? DESLIGADO : LIGADO} **Nome do servidor** nas mensagens`,
+    `${config.ocultarPerfil ? DESLIGADO : LIGADO} **Link do perfil** nas mensagens`,
+    `-# Use ${PREFIXO}config servidor mostrar|ocultar e ${PREFIXO}config perfil mostrar|ocultar.`,
     `-# Altere os filtros com \`${PREFIXO}automod\` e pause com \`${PREFIXO}pausar\`.`
   ].filter((linha) => linha !== null).join('\n');
 }
@@ -38,13 +41,24 @@ module.exports = {
   aliases: ['configurar', 'configurações'],
   description: 'Mostra o estado da conexão global e do webhook.',
 
-  async execute(message) {
+  async execute(message, args = []) {
     const guildId = idDoServidor(message);
     if (!guildId) return;
+
+    const campo = { servidor: 'ocultarServidor', perfil: 'ocultarPerfil' }[(args[0] || '').toLowerCase()];
+    const acao = (args[1] || '').toLowerCase();
+    const ocultar = ['ocultar', 'esconder', 'off'].includes(acao) ? true : ['mostrar', 'exibir', 'on'].includes(acao) ? false : null;
 
     if (!(await temPermissaoConfig(message))) {
       log.warn('CONFIG', `Permissão negada para ${descreverContexto(message)}`);
       await message.reply('<:closecirclefill:1562606683371339786> Você precisa da permissão **Gerenciar Canais** (ou ser o desenvolvedor do Global) para usar este comando.');
+      return;
+    }
+
+    if (campo && ocultar !== null) {
+      await Guild.findOneAndUpdate({ guildId: String(guildId) }, { [campo]: ocultar }, { upsert: true, setDefaultsOnInsert: true });
+      log.ok('CONFIG', `${campo} = ${ocultar} | ${descreverContexto(message)}`);
+      await message.reply(`<:checkboxcirclefill:1562606683371339777> ${campo === 'ocultarServidor' ? 'Nome do servidor' : 'Link do perfil'} ${ocultar ? 'oculto' : 'visível'} nas mensagens enviadas daqui.`);
       return;
     }
 

@@ -10,6 +10,8 @@ const guildSchema = new Schema(
     filtrarPalavroes: { type: Boolean, default: true },
     filtrarLinks: { type: Boolean, default: false },
     cor: { type: Number, default: null },
+    ocultarServidor: { type: Boolean, default: false },
+    ocultarPerfil: { type: Boolean, default: false },
     mostrarIcone: { type: Boolean, default: false },
     webhookId: { type: String, default: null },
     webhookToken: { type: String, default: null, select: false },

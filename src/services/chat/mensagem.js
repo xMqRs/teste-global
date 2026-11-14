@@ -1,6 +1,7 @@
 const { client } = require('../../lib/client');
 const { ROTULO_BADGE, ehDev, NOME_WEBHOOK_MAX } = require('../../config');
 const User = require('../../models/User');
+const Guild = require('../../models/Guild');
 const { badgeAtiva } = require('../badges');
 
 const CONTEUDO_MAX = 2000;
@@ -43,6 +44,7 @@ async function infoMensagem(message) {
   const nickname = autor.globalName || autor.displayName || autor.username;
   const username = autor.username;
 
+  const config = await Guild.findOne({ guildId }).select('ocultarServidor ocultarPerfil').lean();
   const usuario = await User.findOne({ userId: String(autor.id) }).select('staff badges selectedBadge').lean();
   const badge = badgeAtiva(usuario);
 
@@ -65,6 +67,8 @@ async function infoMensagem(message) {
 
   return {
     plataforma,
+    ocultarServidor: !!(config && config.ocultarServidor),
+    ocultarPerfil: !!(config && config.ocultarPerfil),
     rotuloOrigem: ROTULO_PLATAFORMA[plataforma] || plataforma,
     guildId,
     nomeServidor,
@@ -80,8 +84,10 @@ async function infoMensagem(message) {
 
 function montarConteudoWebhook(message, info, links = [], opcoes = {}) {
   const conteudo = opcoes.conteudo === undefined ? message.content : opcoes.conteudo;
-  const origem = escaparMarkdown(info.nomeServidor);
-  const rodape = `-# ${origem} — [Ver perfil](${info.perfilUrl})`;
+  const partes = [];
+  if (!info.ocultarServidor) partes.push(escaparMarkdown(info.nomeServidor));
+  if (!info.ocultarPerfil) partes.push(`[Ver perfil](${info.perfilUrl})`);
+  const rodape = partes.length ? `-# ${partes.join(' — ')}` : '';
   const texto = [conteudo || '', ...links].filter(Boolean).join('\n');
   const limite = CONTEUDO_MAX - rodape.length - RESERVA_MENCAO;
   const corpo = texto.length > limite ? `${texto.slice(0, limite - 1)}…` : texto;
