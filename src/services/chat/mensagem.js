@@ -16,14 +16,15 @@ function discriminadorVisivel(discriminator) {
   return String(discriminator) !== '0';
 }
 
-function montarNomeWebhook(nickname, username, discriminator, rotulo) {
+function montarNomeWebhook(nickname, username, discriminator, rotulo, origem) {
   const tag = discriminadorVisivel(discriminator) ? `#${discriminator}` : '';
+  const prefixo = origem ? `[${origem}] ` : '';
   const sufixo = ` (@${username}${tag})${rotulo ? ` — ${rotulo}` : ''}`;
-  const espaco = NOME_WEBHOOK_MAX - sufixo.length;
+  const espaco = NOME_WEBHOOK_MAX - sufixo.length - prefixo.length;
 
   let nick = String(nickname);
   if (nick.length > espaco) nick = espaco > 1 ? `${nick.slice(0, espaco - 1)}…` : nick.slice(0, 1);
-  return `${nick}${sufixo}`.slice(0, NOME_WEBHOOK_MAX);
+  return `${prefixo}${nick}${sufixo}`.slice(0, NOME_WEBHOOK_MAX);
 }
 
 function urlDoPerfil(plataforma, autorId) {
@@ -39,7 +40,7 @@ async function infoMensagem(message) {
   const g = message.guild || (plataforma === 'fluxer' ? client.guilds.get(guildId) : null);
   const nomeServidor = g && g.name ? g.name : 'Servidor Desconhecido';
 
-  const nickname = autor.displayName || autor.username;
+  const nickname = autor.globalName || autor.displayName || autor.username;
   const username = autor.username;
 
   const usuario = await User.findOne({ userId: String(autor.id) }).select('staff badges selectedBadge').lean();
@@ -58,7 +59,7 @@ async function infoMensagem(message) {
   }
 
   const rotulo = ehDev(autor.id) ? ROTULO_BADGE.developer : (badge ? ROTULO_BADGE[badge] : null);
-  const nomeWebhook = montarNomeWebhook(nickname, username, autor.discriminator, rotulo);
+  const rotuloBadge = rotulo;
   const perfilUrl = urlDoPerfil(plataforma, autor.id);
   const avatarUrl = autor.displayAvatarURL ? autor.displayAvatarURL() : null;
 
@@ -68,19 +69,18 @@ async function infoMensagem(message) {
     guildId,
     nomeServidor,
     urlMidia,
-    nomeWebhook,
+    nickname,
+    username,
+    discriminator: autor.discriminator,
+    rotuloBadge,
     perfilUrl,
     avatarUrl
   };
 }
 
-function nomeDoServidorExibido(info, rotulo) {
-  return rotulo ? `${info.nomeServidor} · ${rotulo}` : info.nomeServidor;
-}
-
 function montarConteudoWebhook(message, info, links = [], opcoes = {}) {
   const conteudo = opcoes.conteudo === undefined ? message.content : opcoes.conteudo;
-  const origem = escaparMarkdown(nomeDoServidorExibido(info, opcoes.rotulo));
+  const origem = escaparMarkdown(info.nomeServidor);
   const rodape = `-# ${origem} — [Ver perfil](${info.perfilUrl})`;
   const texto = [conteudo || '', ...links].filter(Boolean).join('\n');
   const limite = CONTEUDO_MAX - rodape.length - RESERVA_MENCAO;
@@ -90,7 +90,7 @@ function montarConteudoWebhook(message, info, links = [], opcoes = {}) {
 
 function montarPayloadWebhook(message, info, anexos = { arquivos: [], links: [] }, opcoes = {}) {
   const payload = {
-    username: info.nomeWebhook,
+    username: montarNomeWebhook(info.nickname, info.username, info.discriminator, info.rotuloBadge, opcoes.rotulo),
     content: montarConteudoWebhook(message, info, anexos.links, opcoes),
     allowedMentions: { parse: [] }
   };

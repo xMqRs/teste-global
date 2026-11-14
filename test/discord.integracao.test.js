@@ -45,7 +45,7 @@ test('mensagem do Fluxer chega nos servidores Fluxer e Discord com rótulo de pl
   assert.equal(noDiscord.length, 2);
   for (const c of noDiscord) {
     assert.ok(c.webhookId);
-    assert.match(c.opcoes.content, /^olá :heart2fill: mundo\n-# Servidor g1 · Fluxer — /);
+    assert.match(c.opcoes.content, /^olá :heart2fill: mundo\n-# Servidor g1 — /);
     assert.deepEqual(c.opcoes.allowedMentions, { parse: [] });
   }
 
@@ -63,7 +63,7 @@ test('mensagem do Discord chega no Fluxer com menções neutralizadas e rótulo 
   const noFluxer = fluxer.copiasVivas();
   assert.equal(noFluxer.length, 2);
   for (const c of noFluxer) {
-    assert.match(c.opcoes.content, /^oi @usuário :rir:\n-# Servidor g3 · Discord — /);
+    assert.match(c.opcoes.content, /^oi @usuário :rir:\n-# Servidor g3 — /);
     assert.match(c.opcoes.content, /https:\/\/discord\.com\/users\//);
   }
 
@@ -81,7 +81,7 @@ test('Discord usa webhook com nome seguro, reaproveita o webhook e prefixa reply
   assert.equal(copias.length, 2);
   assert.equal(discord.webhooksCriados, 2);
   for (const c of copias) {
-    assert.match(c.opcoes.content, /^primeira\n-# Servidor g1 · Fluxer — \[Ver perfil\]/);
+    assert.match(c.opcoes.content, /^primeira\n-# Servidor g1 — \[Ver perfil\]/);
     assert.deepEqual(c.opcoes.allowedMentions, { parse: [] });
   }
 
