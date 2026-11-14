@@ -17,10 +17,21 @@ const { obterPlataforma, plataformaDaMensagem, apagarCopia } = require('../../pl
 const { carregarCredenciais } = require('../webhooks');
 const { ErroSemWebhook } = require('../entrega/semWebhook');
 const { avisarSemWebhook } = require('../avisoWebhook');
+const { limitar } = require('../../util/conversao');
 const { infoMensagem } = require('./mensagem');
 const { prepararAnexos } = require('./anexos');
 
 const cooldownUsuarios = new Map();
+
+async function previaDaMensagem(message, refId) {
+  try {
+    const original = await message.channel.messages.fetch(String(refId));
+    const texto = String((original && original.content) || '').replace(/\s+/g, ' ').trim();
+    return texto ? limitar(texto, 40) : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 async function destinosDaPonteAtivos(ponte, guildIdOrigem) {
   const bloqueados = new Set(await Bloqueio.find({ tipo: 'servidor' }).distinct('id'));
@@ -123,6 +134,7 @@ async function retransmitirMensagemGlobal(message, ponte = null) {
   };
 
   const refId = message.messageReference ? message.messageReference.messageId : null;
+  const previaReply = refId ? await previaDaMensagem(message, refId) : null;
   let grupoRespondido = null;
   let origemReply = null;
   const copiasDoRespondido = new Map();
@@ -171,7 +183,8 @@ async function retransmitirMensagemGlobal(message, ponte = null) {
           preparo: preparoDe(adaptador.nome),
           mencao,
           origemReply,
-          alvoReply
+          alvoReply,
+          previaReply
         });
       });
     }));

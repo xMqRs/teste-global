@@ -80,20 +80,21 @@ async function executarWebhook(destino, payload) {
   return { mensagem, webhookId: String(novo.id) };
 }
 
-function conteudoWebhookDoDestino(base, mencao, alvoReply, destino) {
+function conteudoWebhookDoDestino(base, mencao, alvoReply, destino, previa) {
+  const texto = (previa || 'mensagem').replace(/[\[\]]/g, '');
   const prefixoReply = alvoReply
-    ? `↩️ [em resposta](${linkDaMensagem(destino.guildId, alvoReply.canalId, alvoReply.msgId)})\n`
+    ? `-# Respondendo a: [${texto}](${linkDaMensagem(destino.guildId, alvoReply.canalId, alvoReply.msgId)})\n`
     : '';
   const prefixoMencao = mencao ? `${mencao}\n` : '';
   return limitar(`${prefixoReply}${prefixoMencao}${base.content}`, LIMITE_CONTEUDO);
 }
 
 async function entregarPorWebhook(destino, entrega) {
-  const { preparo, mencao, origemReply, alvoReply } = entrega;
+  const { preparo, mencao, origemReply, alvoReply, previaReply } = entrega;
   const base = await preparo.payloadWebhook();
   const payload = {
     ...base,
-    content: conteudoWebhookDoDestino(base, mencao, alvoReply, destino),
+    content: conteudoWebhookDoDestino(base, mencao, alvoReply, destino, previaReply),
     allowedMentions: mencao ? { parse: [], users: [origemReply.autorId] } : { parse: [] }
   };
 
