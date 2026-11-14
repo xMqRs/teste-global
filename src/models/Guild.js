@@ -16,6 +16,7 @@ const guildSchema = new Schema(
     webhookId: { type: String, default: null },
     webhookToken: { type: String, default: null, select: false },
     webhookCanalId: { type: String, default: null },
+    modoEnvio: { type: String, enum: ['webhook', 'embed', null], default: null },
     configPainelMessageId: { type: String, default: null },
     configPainelUserId: { type: String, default: null }
   },

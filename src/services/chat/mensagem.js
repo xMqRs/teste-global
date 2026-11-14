@@ -1,10 +1,13 @@
+const { EmbedBuilder } = require('@fluxerjs/core');
 const { client } = require('../../lib/client');
-const { ROTULO_BADGE, ehDev, NOME_WEBHOOK_MAX } = require('../../config');
+const { DONO_ID, MUBI_ID, COR_EMBED_MUBI, ROTULO_BADGE, ehDev, NOME_WEBHOOK_MAX } = require('../../config');
 const User = require('../../models/User');
 const Guild = require('../../models/Guild');
-const { badgeAtiva } = require('../badges');
+const { corDaBadge, badgeAtiva } = require('../badges');
+const { limitar } = require('../../util/conversao');
 
 const CONTEUDO_MAX = 2000;
+const DESCRICAO_EMBED_MAX = 4096;
 const RESERVA_MENCAO = 40;
 const ROTULO_PLATAFORMA = { fluxer: 'Fluxer', discord: 'Discord' };
 
@@ -15,6 +18,35 @@ function escaparMarkdown(texto) {
 function discriminadorVisivel(discriminator) {
   if (discriminator === undefined || discriminator === null) return false;
   return String(discriminator) !== '0';
+}
+
+function etiquetaDoUsuario(nickname, username, discriminator) {
+  const tag = discriminadorVisivel(discriminator) ? `#${discriminator}` : '';
+  return `${nickname} (@${username}${tag})`;
+}
+
+function obterIconeServidor(g) {
+  if (!g) return null;
+
+  if (typeof g.iconURL === 'function') {
+    try {
+      const url = g.iconURL({ extension: 'gif', forceStatic: false, size: 128 }) || g.iconURL();
+      if (url) return url;
+    } catch (_) {
+      try {
+        const url = g.iconURL();
+        if (url) return url;
+      } catch (_) {}
+    }
+  }
+
+  if (g.icon) {
+    const animado = String(g.icon).startsWith('a_');
+    const ext = animado ? 'gif' : 'png';
+    return `https://fluxerusercontent.com/icons/${g.id}/${g.icon}.${ext}?size=128`;
+  }
+
+  return null;
 }
 
 function montarNomeWebhook(nickname, username, discriminator, rotulo, origem) {
@@ -44,7 +76,7 @@ async function infoMensagem(message) {
   const nickname = autor.globalName || autor.displayName || autor.username;
   const username = autor.username;
 
-  const config = await Guild.findOne({ guildId }).select('ocultarServidor ocultarPerfil').lean();
+  const config = await Guild.findOne({ guildId }).select('ocultarServidor ocultarPerfil mostrarIcone cor').lean();
   const usuario = await User.findOne({ userId: String(autor.id) }).select('staff badges selectedBadge').lean();
   const badge = badgeAtiva(usuario);
 
@@ -62,6 +94,19 @@ async function infoMensagem(message) {
 
   const rotulo = ehDev(autor.id) ? ROTULO_BADGE.developer : (badge ? ROTULO_BADGE[badge] : null);
   const rotuloBadge = rotulo;
+  const iconeServidor = !config || config.mostrarIcone !== false ? obterIconeServidor(g) : null;
+  const etiqueta = etiquetaDoUsuario(nickname, username, autor.discriminator);
+  let authorText = etiqueta;
+  let corEmbed = corDaBadge(usuario) ?? (config && config.cor != null ? config.cor : 0x0B0B0B);
+  if (autor.id === DONO_ID) {
+    authorText = `${etiqueta} - Desenvolvedor do Global`;
+    corEmbed = 0xC0B29D;
+  } else if (autor.id === MUBI_ID) {
+    authorText = `${etiqueta} - Desenvolvedor do Global`;
+    corEmbed = COR_EMBED_MUBI;
+  } else if (badge) {
+    authorText = `${etiqueta} - ${ROTULO_BADGE[badge]}`;
+  }
   const perfilUrl = urlDoPerfil(plataforma, autor.id);
   const avatarUrl = autor.displayAvatarURL ? autor.displayAvatarURL() : null;
 
@@ -77,6 +122,9 @@ async function infoMensagem(message) {
     username,
     discriminator: autor.discriminator,
     rotuloBadge,
+    iconeServidor,
+    authorText,
+    corEmbed,
     perfilUrl,
     avatarUrl
   };
@@ -112,8 +160,52 @@ function montarCorpoEdicaoWebhook(message, info, opcoes = {}) {
   };
 }
 
+function textoAutorEmbed(info, opcoes) {
+  return opcoes.rotulo ? `[${opcoes.rotulo}] ${info.authorText}` : info.authorText;
+}
+
+function montarEmbedGlobal(message, info, opcoes = {}) {
+  const autor = message.author;
+  const avatarUrl = autor.displayAvatarURL ? autor.displayAvatarURL() : null;
+  const conteudo = opcoes.conteudo === undefined ? message.content : opcoes.conteudo;
+
+  const embed = new EmbedBuilder()
+    .setDescription(conteudo ? conteudo : null)
+    .setColor(info.corEmbed)
+    .setAuthor({ name: textoAutorEmbed(info, opcoes), iconURL: avatarUrl, ...(info.ocultarPerfil ? {} : { url: info.perfilUrl }) });
+  if (!info.ocultarServidor) {
+    const footer = { text: info.nomeServidor };
+    if (info.iconeServidor) footer.iconURL = info.iconeServidor;
+    embed.setFooter(footer);
+  }
+  if (info.urlMidia) embed.setImage(info.urlMidia);
+  return embed;
+}
+
+function montarEmbedJson(message, info, opcoes = {}) {
+  const autor = message.author;
+  const avatarUrl = autor.displayAvatarURL ? autor.displayAvatarURL() : null;
+  const conteudo = opcoes.conteudo === undefined ? message.content : opcoes.conteudo;
+
+  const embed = {
+    color: info.corEmbed,
+    author: { name: limitar(textoAutorEmbed(info, opcoes), 256) }
+  };
+  if (!info.ocultarPerfil) embed.author.url = info.perfilUrl;
+  if (!info.ocultarServidor) {
+    embed.footer = { text: limitar(info.nomeServidor, 2048) };
+    if (info.iconeServidor) embed.footer.icon_url = info.iconeServidor;
+  }
+  if (conteudo) embed.description = limitar(conteudo, DESCRICAO_EMBED_MAX);
+  if (avatarUrl) embed.author.icon_url = avatarUrl;
+  if (info.urlMidia) embed.image = { url: info.urlMidia };
+  return embed;
+}
+
 module.exports = {
   infoMensagem,
+  montarEmbedGlobal,
+  montarEmbedJson,
   montarPayloadWebhook,
   montarCorpoEdicaoWebhook
 };

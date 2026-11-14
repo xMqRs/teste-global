@@ -71,7 +71,8 @@ async function carregarDestinosAtivos() {
       filtrarLinks: !!g.filtrarLinks,
       webhookId: g.webhookId || null,
       webhookToken: g.webhookToken || null,
-      webhookCanalId: g.webhookCanalId || null
+      webhookCanalId: g.webhookCanalId || null,
+      modoEnvio: g.modoEnvio || null
     }));
 }
 

@@ -1,10 +1,10 @@
 const { Routes } = require('discord.js');
 const { discordClient } = require('../../lib/discordClient');
-const { COR_PADRAO_ANUNCIO } = require('../../config');
-const { errMsg } = require('../../util/logger');
-const { marcarEnvio } = require('../../util/ratelimit');
+const { MODO_ENVIO, COR_PADRAO_ANUNCIO } = require('../../config');
+const { log, errMsg } = require('../../util/logger');
+const { ehRateLimit, marcarEnvio } = require('../../util/ratelimit');
 const { nomeWebhookDiscord, limitar, textoDoBotParaDiscord } = require('../../util/conversao');
-const { montarPayloadWebhook, montarCorpoEdicaoWebhook } = require('../../services/chat/mensagem');
+const { montarEmbedJson, montarPayloadWebhook, montarCorpoEdicaoWebhook } = require('../../services/chat/mensagem');
 const { ErroSemWebhook } = require('../../services/entrega/semWebhook');
 const { statusDe } = require('../../services/entrega/fila');
 const fila = require('./fila');
@@ -20,6 +20,7 @@ function linkDaMensagem(guildId, canalId, msgId) {
 
 function criarPreparo({ message, info, obterAnexos, conteudo, rotulo }) {
   const opcoes = { conteudo, rotulo };
+  const embed = montarEmbedJson(message, info, opcoes);
   let payloadPronto = null;
   const payloadWebhook = () => {
     if (!payloadPronto) {
@@ -37,7 +38,7 @@ function criarPreparo({ message, info, obterAnexos, conteudo, rotulo }) {
     return payloadPronto;
   };
 
-  return { payloadWebhook };
+  return { embed, payloadWebhook, conteudo };
 }
 
 function webhookInvalido(e) {
@@ -115,26 +116,69 @@ function enviarPelaApi(canalId, corpo) {
   return discordClient.rest.post(Routes.channelMessages(String(canalId)), { body: corpo });
 }
 
+async function entregarPorEmbed(destino, entrega) {
+  const { preparo, mencao, origemReply, alvoReply } = entrega;
+
+  const corpo = {
+    embeds: [preparo.embed],
+    allowed_mentions: mencao ? { parse: [], users: [origemReply.autorId], replied_user: false } : { parse: [] },
+    ...(mencao ? { content: mencao } : {})
+  };
+
+  let enviada;
+  let comReply = false;
+  if (alvoReply) {
+    try {
+      enviada = await enviarPelaApi(destino.canalId, {
+        ...corpo,
+        message_reference: {
+          message_id: String(alvoReply.msgId),
+          channel_id: String(alvoReply.canalId),
+          guild_id: String(destino.guildId),
+          fail_if_not_exists: false
+        }
+      });
+      comReply = true;
+    } catch (e) {
+      if (ehRateLimit(e)) throw e;
+      log.warn('GLOBAL', `Reply falhou no servidor ${destino.guildId}, enviando sem reply: ${errMsg(e)}`);
+    }
+  }
+  if (!enviada) enviada = await enviarPelaApi(destino.canalId, corpo);
+
+  return { guildId: destino.guildId, canalId: destino.canalId, msgId: enviada.id, comReply };
+}
+
 async function entregar(destino, entrega) {
+  if ((destino.modoEnvio || MODO_ENVIO) !== 'webhook') return entregarPorEmbed(destino, entrega);
   const porWebhook = await entregarPorWebhook(destino, entrega);
   if (!porWebhook) throw new ErroSemWebhook(destino);
   return porWebhook;
 }
 
 function montarEdicao(message, info, opcoes) {
-  return { corpoWebhook: montarCorpoEdicaoWebhook(message, info, opcoes) };
+  return {
+    corpoEmbed: { embeds: [montarEmbedJson(message, info, opcoes)], allowed_mentions: { parse: [] } },
+    corpoWebhook: montarCorpoEdicaoWebhook(message, info, opcoes)
+  };
 }
 
 function editarCopia(copia, edicao, credenciais) {
-  if (!copia.webhookId) return Promise.resolve('sem-webhook');
+  const opcoes = { prioridade: 'alta', idempotente: true, dedupe: `edit:${copia.msgId}` };
 
-  const webhook = webhooks.webhookDaCopia(copia, credenciais);
-  if (!webhook) return Promise.resolve('sem-webhook');
+  if (copia.webhookId) {
+    const webhook = webhooks.webhookDaCopia(copia, credenciais);
+    if (!webhook) return Promise.resolve('sem-webhook');
+    return fila.enfileirar(copia.canalId, async () => {
+      await webhook.editMessage(String(copia.msgId), edicao.corpoWebhook);
+      return 'editada';
+    }, opcoes);
+  }
 
   return fila.enfileirar(copia.canalId, async () => {
-    await webhook.editMessage(String(copia.msgId), edicao.corpoWebhook);
+    await discordClient.rest.patch(Routes.channelMessage(String(copia.canalId), String(copia.msgId)), { body: edicao.corpoEmbed });
     return 'editada';
-  }, { prioridade: 'alta', idempotente: true, dedupe: `edit:${copia.msgId}` });
+  }, opcoes);
 }
 
 function apagarCopia(copia, credenciais) {

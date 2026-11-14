@@ -61,16 +61,16 @@ test('comandos de staff e dono não passam pelo Discord', async () => {
   assert.equal(await tratarComando(criarInteracaoCompat(interacao, ''), 'g.ban 1', ['conexao', 'geral']), false);
 });
 
-test('/config no Discord mostra conexão e estado do webhook sem opções de modo', async () => {
+test('/config no Discord mostra conexão, modo de envio e estado do webhook', async () => {
   H.popularDestinos(0);
   carregarComandos();
-  await Guild.findOneAndUpdate({ guildId: 'g3' }, { canalId: 'c3', plataforma: 'discord' }, { upsert: true });
+  await Guild.findOneAndUpdate({ guildId: 'g3' }, { canalId: 'c3', plataforma: 'discord', modoEnvio: 'webhook' }, { upsert: true });
 
   const antes = interacaoFalsa();
   await tratarComando(criarInteracaoCompat(antes, ''), 'g.config', ['conexao', 'geral']);
   assert.match(antes.respostas[0].content, /Conexão global: <#c3>/);
   assert.match(antes.respostas[0].content, /ainda não criado/);
-  assert.doesNotMatch(antes.respostas[0].content, /embed/i);
+  assert.match(antes.respostas[0].content, /Modo de envio: \*\*webhook\*\*/);
 
   await Guild.updateOne({ guildId: 'g3' }, { $set: { webhookId: 'w1', webhookToken: 't', webhookCanalId: 'c3' } });
   const depois = interacaoFalsa();

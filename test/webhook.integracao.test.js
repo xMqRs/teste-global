@@ -1,3 +1,4 @@
+process.env.MODO_ENVIO = 'webhook';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const H = require('./harness/falsos');
@@ -169,6 +170,18 @@ test('cada servidor usa o próprio webhook', async () => {
   const copias = api.copiasVivas();
   assert.equal(copias.length, 5);
   assert.equal(new Set(copias.map((m) => m.webhookId)).size, 5);
+});
+
+test('cada servidor escolhe o próprio modo: g3 em embed, os outros em webhook', async () => {
+  const api = await novoCenario(3);
+  await Guild.updateOne({ guildId: 'g3' }, { modoEnvio: 'embed' });
+  await retransmitirMensagemGlobal(H.mensagemDe({ guildIdx: 1, conteudo: 'modo por servidor' }));
+
+  const vivas = api.copiasVivas();
+  assert.equal(vivas.length, 2);
+  assert.equal(vivas.filter((m) => m.webhookId).length, 1);
+  const embed = vivas.find((m) => !m.webhookId);
+  assert.equal(embed.opcoes.embeds.length, 1);
 });
 
 test('sem permissão para criar webhook, nada é entregue e o canal é avisado uma única vez', async () => {

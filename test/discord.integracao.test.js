@@ -1,3 +1,4 @@
+process.env.MODO_ENVIO = 'webhook';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const H = require('./harness/falsos');

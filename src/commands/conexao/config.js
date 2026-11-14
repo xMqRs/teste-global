@@ -1,4 +1,4 @@
-const { PREFIXO } = require('../../config');
+const { PREFIXO, MODO_ENVIO } = require('../../config');
 const Guild = require('../../models/Guild');
 const { idDoServidor } = require('../../util/ids');
 const { log, descreverContexto } = require('../../util/logger');
@@ -8,7 +8,12 @@ const LIGADO = '<:togglefill:1562606683371339783>';
 const DESLIGADO = '<:toggleline:1562606683371339782>';
 const INFO = '<:information2fill:1562606683371339784>';
 
+function modoDoServidor(config) {
+  return config.modoEnvio || MODO_ENVIO;
+}
+
 function estadoDoWebhook(config) {
+  if (modoDoServidor(config) !== 'webhook') return `${DESLIGADO} **Webhook** · desligado, as mensagens chegam em embed`;
   const ativo = !!config.webhookId && config.webhookCanalId === config.canalId;
   return ativo
     ? `${LIGADO} **Webhook** · ativo neste canal`
@@ -25,12 +30,14 @@ function montarStatus(config) {
     '',
     conexao,
     '',
+    config.canalId ? `${INFO} Modo de envio: **${modoDoServidor(config)}**` : null,
     config.canalId ? estadoDoWebhook(config) : null,
     config.canalId ? '' : null,
     `${config.filtrarPalavroes !== false ? LIGADO : DESLIGADO} **Filtro de palavrões**`,
     `${config.filtrarLinks ? LIGADO : DESLIGADO} **Filtro de links**`,
     `${config.ocultarServidor ? DESLIGADO : LIGADO} **Nome do servidor** nas mensagens`,
     `${config.ocultarPerfil ? DESLIGADO : LIGADO} **Link do perfil** nas mensagens`,
+    `-# Use ${PREFIXO}config modo embed|webhook para trocar como as mensagens chegam aqui.`,
     `-# Use ${PREFIXO}config servidor mostrar|ocultar e ${PREFIXO}config perfil mostrar|ocultar.`,
     `-# Altere os filtros com \`${PREFIXO}automod\` e pause com \`${PREFIXO}pausar\`.`
   ].filter((linha) => linha !== null).join('\n');
@@ -44,6 +51,18 @@ module.exports = {
   async execute(message, args = []) {
     const guildId = idDoServidor(message);
     if (!guildId) return;
+
+    if ((args[0] || '').toLowerCase() === 'modo' && ['embed', 'webhook'].includes((args[1] || '').toLowerCase())) {
+      if (!(await temPermissaoConfig(message))) {
+        await message.reply('<:closecirclefill:1562606683371339786> Você precisa da permissão **Gerenciar Canais** (ou ser o desenvolvedor do Global) para usar este comando.');
+        return;
+      }
+      const modo = args[1].toLowerCase();
+      await Guild.findOneAndUpdate({ guildId: String(guildId) }, { modoEnvio: modo }, { upsert: true, setDefaultsOnInsert: true });
+      log.ok('CONFIG', `modo de envio = ${modo} | ${descreverContexto(message)}`);
+      await message.reply(`<:checkboxcirclefill:1562606683371339777> As mensagens do Global agora chegam aqui em **${modo}**.${modo === 'webhook' ? '\n-# O Global precisa da permissão **Gerenciar Webhooks** neste canal.' : ''}`);
+      return;
+    }
 
     const campo = { servidor: 'ocultarServidor', perfil: 'ocultarPerfil' }[(args[0] || '').toLowerCase()];
     const acao = (args[1] || '').toLowerCase();
